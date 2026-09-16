@@ -1,36 +1,15 @@
-import { readJSON, writeJSON } from '../utils/storage'
 import { isValidITSFormat } from '../utils/validators'
-import { generateId } from '../utils/id'
+import { supabase } from '../config/supabase'
 
-const STORE_KEY = 'authorizedITS'
-
-/**
- * Shape of a stored record:
- * {
- *   id: string,
- *   its: string,            // 8-digit ITS number
- *   active: boolean,
- *   createdAt: string,      // ISO date
- *   activeSession: null | { sessionId, deviceId, issuedAt }
- * }
- *
- * Every method here is async and returns plain data, on purpose:
- * it mirrors the shape a real SupabaseITSService would have, so the
- * UI layer never needs to change when local storage is swapped for a
- * real backend. Only this file (and sessionService's calls into it)
- * would need to be replaced.
- */
-class LocalStorageITSService {
-  _readAll() {
-    return readJSON(STORE_KEY, [])
-  }
-
-  _writeAll(records) {
-    writeJSON(STORE_KEY, records)
-  }
-
+class SupabaseITSService {
   async list() {
-    return [...this._readAll()].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+    const { data, error } = await supabase
+      .from('authorized_its')
+      .select('*')
+      .order('created_at', { ascending: false })
+    
+    if (error) throw error
+    return data.map(this._mapRecord)
   }
 
   async add(itsNumber) {
@@ -39,47 +18,72 @@ class LocalStorageITSService {
       throw new Error('ITS number must be exactly 8 digits, numbers only.')
     }
 
-    const records = this._readAll()
-    if (records.some((r) => r.its === its)) {
+    // Check if it already exists to provide a clean error message
+    const { data: existing } = await supabase
+      .from('authorized_its')
+      .select('id')
+      .eq('its', its)
+      .single()
+      
+    if (existing) {
       throw new Error('This ITS number is already registered.')
     }
 
-    const record = {
-      id: generateId('its'),
-      its,
-      active: true,
-      createdAt: new Date().toISOString(),
-      activeSession: null
+    const { data, error } = await supabase
+      .from('authorized_its')
+      .insert([{ its, active: true }])
+      .select()
+      .single()
+
+    if (error) {
+      if (error.code === '23505') { // Unique violation
+        throw new Error('This ITS number is already registered.')
+      }
+      throw error
     }
 
-    records.push(record)
-    this._writeAll(records)
-    return record
+    return this._mapRecord(data)
   }
 
   async setActive(id, active) {
-    const records = this._readAll()
-    const index = records.findIndex((r) => r.id === id)
-    if (index === -1) throw new Error('ITS record not found.')
-
-    records[index] = {
-      ...records[index],
-      active,
-      // Disabling an ITS immediately invalidates any live session.
-      activeSession: active ? records[index].activeSession : null
+    // If disabling, also clear the active session
+    const updateData = { active }
+    if (!active) {
+      updateData.active_session_id = null
+      updateData.active_device_id = null
+      updateData.session_issued_at = null
     }
-    this._writeAll(records)
-    return records[index]
+
+    const { data, error } = await supabase
+      .from('authorized_its')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw new Error('ITS record not found or update failed.')
+    return this._mapRecord(data)
   }
 
   async remove(id) {
-    const records = this._readAll().filter((r) => r.id !== id)
-    this._writeAll(records)
+    const { error } = await supabase
+      .from('authorized_its')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw error
   }
 
   async findByITS(itsNumber) {
     const its = String(itsNumber).trim()
-    return this._readAll().find((r) => r.its === its) ?? null
+    const { data, error } = await supabase
+      .from('authorized_its')
+      .select('*')
+      .eq('its', its)
+      .single()
+
+    if (error || !data) return null
+    return this._mapRecord(data)
   }
 
   async isAuthorized(itsNumber) {
@@ -87,20 +91,19 @@ class LocalStorageITSService {
     return Boolean(record && record.active)
   }
 
-  /**
-   * Attempts to attach a session to an ITS record. Fails if another
-   * session is already active on a different device (single-device
-   * lock). Returns the updated record.
-   */
   async attachSession(itsNumber, { sessionId, deviceId }) {
-    const records = this._readAll()
-    const index = records.findIndex((r) => r.its === String(itsNumber).trim())
-    if (index === -1) throw new Error('ITS record not found.')
+    const its = String(itsNumber).trim()
+    
+    // First get the record to check for existing sessions
+    const { data: record, error: fetchError } = await supabase
+      .from('authorized_its')
+      .select('*')
+      .eq('its', its)
+      .single()
+      
+    if (fetchError || !record) throw new Error('ITS record not found.')
 
-    const record = records[index]
-    const existing = record.activeSession
-
-    if (existing && existing.deviceId !== deviceId) {
+    if (record.active_device_id && record.active_device_id !== deviceId) {
       const err = new Error(
         'This ITS is already logged in on another device. Log out there first.'
       )
@@ -108,34 +111,67 @@ class LocalStorageITSService {
       throw err
     }
 
-    records[index] = {
-      ...record,
-      activeSession: { sessionId, deviceId, issuedAt: new Date().toISOString() }
-    }
-    this._writeAll(records)
-    return records[index]
+    const { data, error: updateError } = await supabase
+      .from('authorized_its')
+      .update({
+        active_session_id: sessionId,
+        active_device_id: deviceId,
+        session_issued_at: new Date().toISOString()
+      })
+      .eq('its', its)
+      .select()
+      .single()
+
+    if (updateError) throw updateError
+    return this._mapRecord(data)
   }
 
   async clearSession(itsNumber, sessionId) {
-    const records = this._readAll()
-    const index = records.findIndex((r) => r.its === String(itsNumber).trim())
-    if (index === -1) return
-
-    const record = records[index]
-    // Only clear if it matches the session asking to log out, so a
-    // stale tab can't wipe out a newer, legitimate session.
-    if (record.activeSession && record.activeSession.sessionId === sessionId) {
-      records[index] = { ...record, activeSession: null }
-      this._writeAll(records)
+    const its = String(itsNumber).trim()
+    
+    // Only clear if the session ID matches, to prevent stale sessions from logging out new ones
+    const { error } = await supabase
+      .from('authorized_its')
+      .update({
+        active_session_id: null,
+        active_device_id: null,
+        session_issued_at: null
+      })
+      .eq('its', its)
+      .eq('active_session_id', sessionId)
+      
+    if (error) {
+      console.error('Error clearing session:', error)
     }
   }
 
   async stats() {
-    const records = this._readAll()
-    const total = records.length
-    const active = records.filter((r) => r.active).length
+    const { data, error } = await supabase
+      .from('authorized_its')
+      .select('active')
+      
+    if (error) return { total: 0, active: 0, disabled: 0 }
+    
+    const total = data.length
+    const active = data.filter((r) => r.active).length
     return { total, active, disabled: total - active }
+  }
+
+  // Maps database record to the format expected by the frontend
+  _mapRecord(dbRecord) {
+    if (!dbRecord) return null
+    return {
+      id: dbRecord.id,
+      its: dbRecord.its,
+      active: dbRecord.active,
+      createdAt: dbRecord.created_at,
+      activeSession: dbRecord.active_session_id ? {
+        sessionId: dbRecord.active_session_id,
+        deviceId: dbRecord.active_device_id,
+        issuedAt: dbRecord.session_issued_at
+      } : null
+    }
   }
 }
 
-export const itsService = new LocalStorageITSService()
+export const itsService = new SupabaseITSService()
