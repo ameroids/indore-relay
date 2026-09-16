@@ -1,0 +1,29 @@
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 1.8rem;
+}
+
+.dashboard__welcome {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dashboard__greeting {
+  color: var(--accent-strong);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.dashboard__welcome h1 {
+  font-size: 2rem;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard__sub {
+  color: var(--text-secondary);
+  font-size: 0.94rem;
+  max-width: 52ch;
+}

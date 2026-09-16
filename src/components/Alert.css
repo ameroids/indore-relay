@@ -1,0 +1,25 @@
+.alert {
+  font-size: 0.86rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  line-height: 1.4;
+}
+
+.alert--error {
+  background: var(--status-danger-bg);
+  color: var(--status-danger-text);
+  border-color: color-mix(in srgb, var(--status-danger-text) 25%, transparent);
+}
+
+.alert--success {
+  background: var(--status-ok-bg);
+  color: var(--status-ok-text);
+  border-color: color-mix(in srgb, var(--status-ok-text) 25%, transparent);
+}
+
+.alert--info {
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  border-color: var(--line-subtle);
+}
