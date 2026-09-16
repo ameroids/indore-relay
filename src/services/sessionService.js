@@ -62,6 +62,20 @@ class SessionService {
     }
     remove(SESSION_KEY)
   }
+
+  async verifySession() {
+    const session = this.getSession()
+    if (!session) return false
+    
+    if (ENFORCE_SINGLE_DEVICE_SESSION) {
+      const record = await itsService.findByITS(session.its)
+      if (!record || !record.active || !record.activeSession || record.activeSession.sessionId !== session.sessionId) {
+        remove(SESSION_KEY)
+        return false
+      }
+    }
+    return true
+  }
 }
 
 export const sessionService = new SessionService()

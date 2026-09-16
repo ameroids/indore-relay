@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useMemo, useState, useEffect } from 'react'
 import { sessionService } from '../services/sessionService'
 
 const UserAuthContext = createContext(null)
@@ -29,6 +29,19 @@ export function UserAuthProvider({ children }) {
   }, [])
 
   const clearError = useCallback(() => setError(null), [])
+
+  useEffect(() => {
+    if (!session) return
+
+    const interval = setInterval(async () => {
+      const isValid = await sessionService.verifySession()
+      if (!isValid) {
+        setSession(null)
+      }
+    }, 5000)
+
+    return () => clearInterval(interval)
+  }, [session])
 
   const value = useMemo(
     () => ({
