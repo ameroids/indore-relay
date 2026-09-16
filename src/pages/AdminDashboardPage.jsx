@@ -5,6 +5,7 @@ import ITSTable from '../components/ITSTable'
 import Modal from '../components/Modal'
 import Alert from '../components/Alert'
 import { itsService } from '../services/itsService'
+import { settingsService, extractYouTubeId } from '../services/settingsService'
 import { validateITS } from '../utils/validators'
 
 export default function AdminDashboardPage() {
@@ -15,10 +16,18 @@ export default function AdminDashboardPage() {
   const [addError, setAddError] = useState(null)
   const [adding, setAdding] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  
+  // Settings state
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [videoLink, setVideoLink] = useState('')
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [settingsError, setSettingsError] = useState(null)
 
   const refresh = async () => {
     const list = await itsService.list()
     setRecords(list)
+    const currentVideoId = await settingsService.getVideoId()
+    setVideoLink(`https://youtube.com/watch?v=${currentVideoId}`)
   }
 
   useEffect(() => {
@@ -69,6 +78,29 @@ export default function AdminDashboardPage() {
     await refresh()
   }
 
+  const handleSaveSettings = async (e) => {
+    e.preventDefault()
+    setSettingsError(null)
+    
+    const videoId = extractYouTubeId(videoLink)
+    if (!videoId) {
+      setSettingsError('Could not extract a valid YouTube video ID from that link.')
+      return
+    }
+
+    setSavingSettings(true)
+    try {
+      await settingsService.setVideoId(videoId)
+      setSettingsOpen(false)
+      // re-format the link to be clean
+      setVideoLink(`https://youtube.com/watch?v=${videoId}`)
+    } catch (err) {
+      setSettingsError(err.message)
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
   return (
     <div className="admin-dashboard">
       <div className="admin-dashboard__head">
@@ -76,9 +108,14 @@ export default function AdminDashboardPage() {
           <h1>Authorized access</h1>
           <p>Manage which ITS numbers can sign in to Indore Relay.</p>
         </div>
-        <button type="button" className="admin-dashboard__add" onClick={() => setModalOpen(true)}>
-          + Add ITS
-        </button>
+        <div className="admin-dashboard__actions">
+          <button type="button" className="admin-dashboard__settings" onClick={() => setSettingsOpen(true)}>
+            Settings
+          </button>
+          <button type="button" className="admin-dashboard__add" onClick={() => setModalOpen(true)}>
+            + Add ITS
+          </button>
+        </div>
       </div>
 
       <div className="admin-dashboard__stats">
@@ -139,6 +176,28 @@ export default function AdminDashboardPage() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      <Modal open={settingsOpen} title="App Settings" onClose={() => setSettingsOpen(false)}>
+        <form className="add-its-form" onSubmit={handleSaveSettings}>
+          <label className="add-its-form__field">
+            <span>YouTube Video Link</span>
+            <input
+              type="text"
+              value={videoLink}
+              onChange={(e) => setVideoLink(e.target.value)}
+              placeholder="https://youtube.com/watch?v=..."
+              style={{ fontSize: '1rem', letterSpacing: 'normal' }}
+            />
+            <small style={{ color: 'var(--text-tertiary)', fontWeight: 'normal', marginTop: '0.2rem' }}>
+              Paste the full YouTube URL. The app will extract the ID automatically.
+            </small>
+          </label>
+          {settingsError && <Alert tone="error">{settingsError}</Alert>}
+          <button type="submit" className="add-its-form__submit" disabled={savingSettings}>
+            {savingSettings ? 'Saving…' : 'Save Settings'}
+          </button>
+        </form>
       </Modal>
     </div>
   )

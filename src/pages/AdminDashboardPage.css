@@ -22,6 +22,28 @@
   margin-top: 0.3rem;
 }
 
+.admin-dashboard__actions {
+  display: flex;
+  gap: 0.8rem;
+}
+
+.admin-dashboard__settings {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--line-strong);
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 0.65rem 1.1rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background 0.15s var(--ease-out);
+  white-space: nowrap;
+}
+
+.admin-dashboard__settings:hover {
+  background: var(--bg-hover);
+}
+
 .admin-dashboard__add {
   background: var(--accent);
   color: var(--accent-contrast);

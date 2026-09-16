@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import './VideoPlayer.css'
 import { PROTECTED_VIDEO, PLAYER_VARS } from '../config/videoConfig'
 import { loadYouTubeIframeApi } from '../services/youtubeApi'
+import { settingsService } from '../services/settingsService'
 import { formatDuration } from '../utils/format'
 
 // YT.PlayerState values: -1 unstarted, 0 ended, 1 playing, 2 paused,
@@ -23,6 +24,7 @@ export default function VideoPlayer() {
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [showControls, setShowControls] = useState(true)
+  const [videoId, setVideoId] = useState(null)
 
   // Set up the player once via the IFrame API. The resulting iframe
   // is kept permanently non-interactive via CSS (see .video-player__mount
@@ -31,11 +33,17 @@ export default function VideoPlayer() {
   useEffect(() => {
     let cancelled = false
 
-    loadYouTubeIframeApi()
-      .then((YT) => {
+    async function initPlayer() {
+      try {
+        const id = await settingsService.getVideoId()
+        if (cancelled) return
+        setVideoId(id)
+
+        const YT = await loadYouTubeIframeApi()
         if (cancelled || !mountRef.current) return
+
         playerRef.current = new YT.Player(mountRef.current, {
-          videoId: PROTECTED_VIDEO.id,
+          videoId: id,
           host: 'https://www.youtube-nocookie.com',
           playerVars: PLAYER_VARS,
           events: {
@@ -60,8 +68,12 @@ export default function VideoPlayer() {
             }
           }
         })
-      })
-      .catch(() => setStatus('error'))
+      } catch (err) {
+        if (!cancelled) setStatus('error')
+      }
+    }
+    
+    initPlayer()
 
     return () => {
       cancelled = true
@@ -182,7 +194,7 @@ export default function VideoPlayer() {
             onClick={togglePlay}
             aria-label={`Play ${PROTECTED_VIDEO.title}`}
             style={{
-              backgroundImage: `url(https://img.youtube.com/vi/${PROTECTED_VIDEO.id}/hqdefault.jpg)`
+              backgroundImage: videoId ? `url(https://img.youtube.com/vi/${videoId}/hqdefault.jpg)` : 'none'
             }}
           >
             <span className="video-player__big-play">
