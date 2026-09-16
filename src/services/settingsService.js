@@ -37,7 +37,8 @@ class SettingsService {
       .upsert({ id: 1, video_id: videoId }, { onConflict: 'id' })
 
     if (error) {
-      throw new Error('Failed to update video settings.')
+      console.error('Supabase upsert error:', error)
+      throw new Error(`Failed to update video settings. Detail: ${error.message}`)
     }
   }
 }

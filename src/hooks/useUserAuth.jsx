@@ -8,11 +8,11 @@ export function UserAuthProvider({ children }) {
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  const login = useCallback(async (itsNumber) => {
+  const login = useCallback(async (itsNumber, force = false) => {
     setLoading(true)
     setError(null)
     try {
-      const newSession = await sessionService.login(itsNumber)
+      const newSession = await sessionService.login(itsNumber, force)
       setSession(newSession)
       return newSession
     } catch (err) {

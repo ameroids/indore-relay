@@ -111,7 +111,7 @@ class SupabaseITSService {
     return Boolean(record && record.active)
   }
 
-  async attachSession(itsNumber, { sessionId, deviceId }) {
+  async attachSession(itsNumber, { sessionId, deviceId }, force = false) {
     const its = String(itsNumber).trim()
     
     // First get the record to check for existing sessions
@@ -123,9 +123,9 @@ class SupabaseITSService {
       
     if (fetchError || !record) throw new Error('ITS record not found.')
 
-    if (record.active_device_id && record.active_device_id !== deviceId) {
+    if (!force && record.active_device_id && record.active_device_id !== deviceId) {
       const err = new Error(
-        'This ITS is already logged in on another device. Log out there first.'
+        'This ITS is already logged in on another device. Logging in here will disconnect the other device.'
       )
       err.code = 'ALREADY_ACTIVE_ELSEWHERE'
       throw err

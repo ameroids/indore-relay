@@ -15,7 +15,7 @@ class SessionService {
    * Validates the ITS, then attempts to open a session for it.
    * Throws with a user-facing message on any failure.
    */
-  async login(itsNumber) {
+  async login(itsNumber, force = false) {
     const record = await itsService.findByITS(itsNumber)
     if (!record || !record.active) {
       const err = new Error('This ITS is not authorized to access Indore Relay.')
@@ -27,7 +27,7 @@ class SessionService {
     const deviceId = getDeviceId()
 
     if (ENFORCE_SINGLE_DEVICE_SESSION) {
-      await itsService.attachSession(itsNumber, { sessionId, deviceId })
+      await itsService.attachSession(itsNumber, { sessionId, deviceId }, force)
     }
 
     const session = {

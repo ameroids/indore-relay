@@ -21,20 +21,22 @@ export default function UserLoginPage() {
     if (error) clearError()
   }
 
-  const handleSubmit = async (event) => {
-    event.preventDefault()
+  const handleSubmit = async (event, force = false) => {
+    if (event) event.preventDefault()
     const result = validateITS(its)
     if (!result.valid) {
       setFormError(result.error)
       return
     }
     try {
-      await login(result.value)
+      await login(result.value, force)
       navigate('/dashboard', { replace: true })
     } catch {
       // error surfaced via context
     }
   }
+
+  const isAlreadyActiveError = error && error.includes('already logged in on another device')
 
   const message = formError || error
 
@@ -61,6 +63,18 @@ export default function UserLoginPage() {
             {loading ? <span className="auth-card__spinner" aria-hidden="true" /> : null}
             {loading ? 'Verifying…' : 'Log in'}
           </button>
+          
+          {isAlreadyActiveError && (
+            <button 
+              type="button" 
+              className="auth-card__submit" 
+              style={{ background: 'var(--status-danger-text)', color: '#2a0d09', marginTop: '0.5rem' }}
+              onClick={() => handleSubmit(null, true)}
+              disabled={loading}
+            >
+              Disconnect other device & Log in
+            </button>
+          )}
         </form>
 
         <p className="auth-card__footnote">
