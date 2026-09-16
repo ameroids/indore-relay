@@ -47,15 +47,29 @@ export default function AdminDashboardPage() {
 
   const handleAdd = async (event) => {
     event.preventDefault()
-    const result = validateITS(newITS)
-    if (!result.valid) {
-      setAddError(result.error)
+    
+    // Split by commas, newlines, or spaces
+    const rawList = newITS.split(/[\s,]+/).filter(Boolean)
+    
+    if (rawList.length === 0) {
+      setAddError('Please enter at least one ITS number.')
       return
     }
+
+    const validList = []
+    for (const its of rawList) {
+      const result = validateITS(its)
+      if (!result.valid) {
+        setAddError(`Invalid ITS: "${its}". ${result.error}`)
+        return
+      }
+      validList.push(result.value)
+    }
+
     setAdding(true)
     setAddError(null)
     try {
-      await itsService.add(result.value)
+      await itsService.addMany(validList)
       setNewITS('')
       setModalOpen(false)
       await refresh()
@@ -140,14 +154,14 @@ export default function AdminDashboardPage() {
       <Modal open={modalOpen} title="Add ITS number" onClose={() => setModalOpen(false)}>
         <form className="add-its-form" onSubmit={handleAdd}>
           <label className="add-its-form__field">
-            <span>8-digit ITS</span>
-            <input
-              type="text"
-              inputMode="numeric"
+            <span>8-digit ITS (bulk add with commas/newlines)</span>
+            <textarea
               autoFocus
+              rows={4}
               value={newITS}
-              onChange={(e) => setNewITS(e.target.value.replace(/\D/g, '').slice(0, 8))}
-              placeholder="00000000"
+              onChange={(e) => setNewITS(e.target.value)}
+              placeholder="00000000, 11111111..."
+              style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', padding: '0.65rem 0.8rem', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--line-strong)', background: 'var(--bg-inset)', color: 'var(--text-primary)', resize: 'vertical' }}
             />
           </label>
           <Alert tone="error">{addError}</Alert>

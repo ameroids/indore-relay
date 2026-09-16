@@ -34,8 +34,7 @@ class SettingsService {
   async setVideoId(videoId) {
     const { error } = await supabase
       .from('app_settings')
-      .update({ video_id: videoId })
-      .eq('id', 1)
+      .upsert({ id: 1, video_id: videoId }, { onConflict: 'id' })
 
     if (error) {
       throw new Error('Failed to update video settings.')

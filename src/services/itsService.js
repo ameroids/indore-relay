@@ -45,6 +45,26 @@ class SupabaseITSService {
     return this._mapRecord(data)
   }
 
+  async addMany(itsList) {
+    // itsList is an array of already-validated strings e.g. ["12345678", "87654321"]
+    if (!itsList || itsList.length === 0) return []
+
+    // Construct records to insert
+    const recordsToInsert = itsList.map(its => ({ its, active: true }))
+    
+    // Use upsert with ignoreDuplicates to skip existing ones silently
+    const { data, error } = await supabase
+      .from('authorized_its')
+      .upsert(recordsToInsert, { onConflict: 'its', ignoreDuplicates: true })
+      .select()
+
+    if (error) {
+      throw error
+    }
+    
+    return data ? data.map(this._mapRecord) : []
+  }
+
   async setActive(id, active) {
     // If disabling, also clear the active session
     const updateData = { active }
